@@ -104,17 +104,32 @@ def velocity_direction_autocorrelation(traj: EventTrajectory, dt=0.05, max_lag=2
     return lags * dt, corr
 
 
-def mean_square_displacement(table: BilliardTable, trajectories, times):
-    """Ensemble-averaged MSD(t) using unwrapped positions (meaningful on the torus)."""
-    msd = np.zeros(len(times))
+def _unwrapped_displacements(table: BilliardTable, trajectories, times):
+    """Per-trajectory (x, y) displacement from t=0, one (len(times), 2) array per trajectory."""
+    out = []
     for traj in trajectories:
         unwrapped = traj.unwrapped_positions(table)
         idx = np.clip(np.searchsorted(traj.times, times, side="right") - 1, 0, len(traj.times) - 1)
         seg_dt = times - traj.times[idx]
         pos = unwrapped[idx] + traj.velocities[idx] * seg_dt[:, None]
-        disp = pos - unwrapped[0]
-        msd += np.sum(disp ** 2, axis=1)
+        out.append(pos - unwrapped[0])
+    return out
+
+
+def mean_square_displacement(table: BilliardTable, trajectories, times):
+    """Ensemble-averaged MSD(t) = <dx^2 + dy^2> using unwrapped positions (meaningful on the torus)."""
+    displacements = _unwrapped_displacements(table, trajectories, times)
+    msd = sum(np.sum(disp ** 2, axis=1) for disp in displacements)
     return msd / len(trajectories)
+
+
+def mean_square_displacement_xy(table: BilliardTable, trajectories, times):
+    """Component-wise ensemble MSD: (<dx^2>(t), <dy^2>(t)) -- reveals anisotropic diffusion
+    on non-square domains, where transport along the two axes need not be equal."""
+    displacements = _unwrapped_displacements(table, trajectories, times)
+    msd_x = sum(disp[:, 0] ** 2 for disp in displacements) / len(trajectories)
+    msd_y = sum(disp[:, 1] ** 2 for disp in displacements) / len(trajectories)
+    return msd_x, msd_y
 
 
 def diffusion_coefficient(times, msd, fit_start_frac=0.3):
@@ -122,3 +137,11 @@ def diffusion_coefficient(times, msd, fit_start_frac=0.3):
     start = int(len(times) * fit_start_frac)
     slope, intercept = np.polyfit(times[start:], msd[start:], 1)
     return slope / 4.0, (slope, intercept)
+
+
+def diffusion_coefficients_xy(times, msd_x, msd_y, fit_start_frac=0.3):
+    """Per-axis diffusion coefficients from MSD_x(t) = 2*D_x*t, MSD_y(t) = 2*D_y*t."""
+    start = int(len(times) * fit_start_frac)
+    slope_x, _ = np.polyfit(times[start:], msd_x[start:], 1)
+    slope_y, _ = np.polyfit(times[start:], msd_y[start:], 1)
+    return slope_x / 2.0, slope_y / 2.0

@@ -7,7 +7,12 @@ import numpy as np
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from sinai_billiard import BilliardTable, Disk, simulate
-from sinai_billiard.analysis import lyapunov_exponent
+from sinai_billiard.analysis import (
+    diffusion_coefficients_xy,
+    lyapunov_exponent,
+    mean_square_displacement_xy,
+)
+from sinai_billiard.experiments import run_ensemble
 
 
 def test_speed_conserved():
@@ -53,6 +58,28 @@ def test_lyapunov_near_zero_for_integrable_square():
     table = BilliardTable(1.0, 1.0, [], periodic=False)
     lam, _, _ = lyapunov_exponent(table, [0.1, 0.15], [0.37, 0.93], t_max=60.0, dt_rescale=1.0)
     assert abs(lam) < 0.05, lam
+
+
+def test_rectangular_table_is_valid():
+    table = BilliardTable(2.5, 1.0, [Disk((1.25, 0.5), 0.15)], periodic=False)
+    traj = simulate(table, [0.1, 0.1], [0.6, 0.8], n_events=5000)
+    speeds = np.linalg.norm(traj.velocities, axis=1)
+    assert np.allclose(speeds, speeds[0], atol=1e-9)
+    assert traj.positions[:, 0].max() < 2.5 + 1e-6
+
+
+def test_elongated_torus_diffuses_anisotropically():
+    # a non-square cell should transport particles at different rates along each axis
+    # (which axis wins depends on the unobstructed-channel widths, not just the side
+    # lengths -- see the aspect-ratio notebook section, this is not a simple "longer
+    # side = faster" relationship)
+    table = BilliardTable(2.5, 1.0, [Disk((1.25, 0.5), 0.15)], periodic=True)
+    ensemble = run_ensemble(table, n_particles=30, n_events=4000, t_max=200.0, seed=5)
+    times = np.linspace(0, 160.0, 100)
+    msd_x, msd_y = mean_square_displacement_xy(table, ensemble, times)
+    D_x, D_y = diffusion_coefficients_xy(times, msd_x, msd_y)
+    assert D_x > 0 and D_y > 0
+    assert abs(D_x - D_y) / max(D_x, D_y) > 0.1, (D_x, D_y)
 
 
 if __name__ == "__main__":
