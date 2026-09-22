@@ -1,1 +1,3 @@
 # sinai_billiard
+
+.
