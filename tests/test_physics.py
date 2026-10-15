@@ -12,7 +12,7 @@ from sinai_billiard.analysis import (
     lyapunov_exponent,
     mean_square_displacement_xy,
 )
-from sinai_billiard.experiments import run_ensemble
+from sinai_billiard.experiments import build_table_equal_area, run_ensemble
 
 
 def test_speed_conserved():
@@ -80,6 +80,39 @@ def test_elongated_torus_diffuses_anisotropically():
     D_x, D_y = diffusion_coefficients_xy(times, msd_x, msd_y)
     assert D_x > 0 and D_y > 0
     assert abs(D_x - D_y) / max(D_x, D_y) > 0.1, (D_x, D_y)
+
+
+def test_width_height_transpose_is_an_exact_symmetry():
+    # swapping width<->height and x<->y, vx<->vy must give the literally same dynamics
+    # (this is the symmetry that a naive "fix width, vary height" aspect-ratio sweep breaks,
+    # because it silently also changes the table's area and the disk's area fraction)
+    table1 = BilliardTable(2.0, 1.0, [Disk((1.0, 0.5), 0.2)], periodic=False)
+    table2 = BilliardTable(1.0, 2.0, [Disk((0.5, 1.0), 0.2)], periodic=False)
+    pos0, vel0 = np.array([0.3, 0.2]), np.array([0.6, 0.8])
+    traj1 = simulate(table1, pos0, vel0, n_events=3000)
+    traj2 = simulate(table2, pos0[::-1], vel0[::-1], n_events=3000)
+    assert np.allclose(traj1.times, traj2.times)
+    assert np.allclose(traj1.positions, traj2.positions[:, ::-1], atol=1e-9)
+    assert np.allclose(traj1.velocities, traj2.velocities[:, ::-1], atol=1e-9)
+
+
+def test_equal_area_aspect_helper_is_symmetric():
+    t1 = build_table_equal_area("sinai_square", aspect=2.0, area=1.0, radius_fraction=0.15)
+    t2 = build_table_equal_area("sinai_square", aspect=0.5, area=1.0, radius_fraction=0.15)
+    assert np.isclose(t1.width, t2.height)
+    assert np.isclose(t1.height, t2.width)
+    assert np.isclose(t1.disks[0].radius, t2.disks[0].radius)
+    assert np.isclose(t1.width * t1.height, 1.0)
+    assert np.isclose(t2.width * t2.height, 1.0)
+
+
+def test_lyapunov_matches_under_equal_area_aspect_mirror():
+    # aspect=r and aspect=1/r are mirror images of the *same* system, so lambda must match
+    t1 = build_table_equal_area("sinai_square", aspect=2.0)
+    t2 = build_table_equal_area("sinai_square", aspect=0.5)
+    lam1, _, _ = lyapunov_exponent(t1, pos0=[0.05, 0.05], vel0=[0.53, 0.85], t_max=80.0)
+    lam2, _, _ = lyapunov_exponent(t2, pos0=[0.05, 0.05], vel0=[0.85, 0.53], t_max=80.0)
+    assert abs(lam1 - lam2) / max(lam1, lam2) < 0.15, (lam1, lam2)
 
 
 if __name__ == "__main__":
