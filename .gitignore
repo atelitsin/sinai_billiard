@@ -2,3 +2,9 @@
 __pycache__/
 *.pyc
 .ipynb_checkpoints/
+
+
+# Manim files
+.venv-manim/
+/media
+/temp
