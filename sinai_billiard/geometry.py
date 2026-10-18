@@ -1,4 +1,5 @@
-"""Billiard table geometry: walls (reflecting or periodic) and circular scatterers.
+"""
+Billiard table geometry: walls (reflecting or periodic) and circular scatterers.
 
 Collisions are resolved analytically (exact quadratic/linear roots), so trajectories
 are exact straight-line segments between events -- no integration error accumulates,
@@ -23,10 +24,11 @@ class Disk:
 
 @dataclass
 class BilliardTable:
-    """Rectangular domain [0, width] x [0, height] with optional circular obstacles.
+    """
+    Rectangular domain [0, width] x [0, height] with optional circular obstacles.
 
     periodic=False -> classic Sinai billiard: walls reflect specularly.
-    periodic=True   -> torus (original Sinai construction): walls wrap the particle.
+    periodic=True  -> torus (original Sinai construction): walls wrap the particle.
 
     Disks must lie fully inside the domain, away from the boundary, so that no
     disk touches a wall or its periodic image; this keeps collision detection to
